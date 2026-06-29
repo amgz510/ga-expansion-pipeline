@@ -475,14 +475,23 @@ function updateStats() {
 }
 
 // ── RENDER ───────────────────────────────────────────────────────────────
-function buildRow(d, showStage, showCu) {
+const OWNER_LABEL = {
+  alexis: 'Alexis Mahoney',
+  stephen: 'Stephen Westman',
+  maria: 'Maria Semblante',
+  sara: 'Sara Baldwin',
+  unknown: 'Unknown',
+};
+
+function buildRow(d, showStage, showCu, showOwner) {
   const tr = document.createElement('tr');
   const url = `https://app.hubspot.com/go-to/14511583/0-3/${d.id}`;
   let nameCell = `<td class="deal-name"><a href="${url}" target="_blank">${d.name}</a>`;
   if (showStage) nameCell += ` <span class="stage-badge ${STAGE_BADGE[d.stage]}" style="margin-left:4px">${d.stage.toUpperCase()}</span>`;
   nameCell += '</td>';
+  const ownerCell = showOwner ? `<td style="font-size:12px;color:#6e6e73;white-space:nowrap">${OWNER_LABEL[d.owner] || d.owner}</td>` : '';
   const cuCell = showCu ? `<td>${cuBadge(d.cu)}</td>` : '';
-  tr.innerHTML = `${nameCell}
+  tr.innerHTML = `${nameCell}${ownerCell}
     <td class="amt">$${d.amt.toLocaleString()}</td>
     <td class="days ${dayClass(d.dis)}">${fmtVal(d.dis)}</td>
     <td class="days ${dayClass(d.ddc)}">${fmtVal(d.ddc)}</td>
@@ -490,7 +499,7 @@ function buildRow(d, showStage, showCu) {
   return tr;
 }
 
-function populateTbody(tbodyId, deals, showStage, showCu) {
+function populateTbody(tbodyId, deals, showStage, showCu, showOwner) {
   const tbody = document.getElementById('tbody-' + tbodyId);
   if (!tbody) return;
   tbody.innerHTML = '';
@@ -504,14 +513,14 @@ function populateTbody(tbodyId, deals, showStage, showCu) {
 
   let visible = 0;
   sorted.forEach(d => {
-    const tr = buildRow(d, showStage, showCu);
+    const tr = buildRow(d, showStage, showCu, showOwner);
     if (!passesFilter(d)) tr.classList.add('hidden');
     else visible++;
     tbody.appendChild(tr);
   });
 
   const pill = document.getElementById('pill-' + tbodyId);
-  const colspan = 5 + (showCu ? 1 : 0) + (showStage ? 1 : 0);
+  const colspan = 5 + (showCu ? 1 : 0) + (showOwner ? 1 : 0);
   if (pill) pill.textContent = activeFilter === 'all' ? deals.length : `${visible} / ${deals.length}`;
 
   if (visible === 0) {
@@ -521,11 +530,12 @@ function populateTbody(tbodyId, deals, showStage, showCu) {
   }
 }
 
-function makeTable(groupId, isBip, showStageCol) {
-  const cuHeader = isBip ? `<th><div class="th-inner">ClickUp Status</div></th>` : '';
-  const stageHeader = showStageCol ? `` : '';
+function makeTable(groupId, isBip, showOwner) {
+  const cuHeader   = isBip      ? `<th><div class="th-inner">ClickUp Status</div></th>` : '';
+  const ownHeader  = showOwner  ? `<th><div class="th-inner">Owner</div></th>` : '';
   return `<thead><tr>
     <th onclick="clickSort('name','${groupId}')"><div class="th-inner">Deal<span class="sort-ind" id="si-name-${groupId}">↕</span></div></th>
+    ${ownHeader}
     <th onclick="clickSort('amt','${groupId}')"><div class="th-inner">Amt<span class="sort-ind" id="si-amt-${groupId}">↕</span></div></th>
     <th onclick="clickSort('stage','${groupId}')"><div class="th-inner">Days in Stage<span class="sort-ind" id="si-stage-${groupId}">↕</span></div></th>
     <th onclick="clickSort('deal','${groupId}')"><div class="th-inner">Last Contact (Deal)<span class="sort-ind" id="si-deal-${groupId}">↕</span></div></th>
@@ -576,7 +586,7 @@ function buildOwnerSection(tabKey) {
       wrap.appendChild(tbl);
       grp.appendChild(wrap);
       sec.appendChild(grp);
-      populateTbody(sub.key, subDeals, true, false);
+      populateTbody(sub.key, subDeals, true, false, false);
     });
   } else {
     // Group by stage
@@ -586,6 +596,7 @@ function buildOwnerSection(tabKey) {
       if (!stgDeals.length) return;
       const grpId = `${tabKey}-${stg}`;
       const isBip = stg === 'bip';
+      const showOwner = tabKey === 'all';
       const grp = document.createElement('div');
       grp.className = 'stage-group';
       grp.innerHTML = `<div class="stage-header">
@@ -595,11 +606,11 @@ function buildOwnerSection(tabKey) {
       const wrap = document.createElement('div');
       wrap.className = 'card-wrap';
       const tbl = document.createElement('table');
-      tbl.innerHTML = makeTable(grpId, isBip, tabKey === 'all');
+      tbl.innerHTML = makeTable(grpId, isBip, showOwner);
       wrap.appendChild(tbl);
       grp.appendChild(wrap);
       sec.appendChild(grp);
-      populateTbody(grpId, stgDeals, tabKey === 'all', isBip);
+      populateTbody(grpId, stgDeals, false, isBip, showOwner);
     });
   }
 }
