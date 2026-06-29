@@ -35,3 +35,6 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: main
+
+      - name: Ping healthchecks.io
+        run: curl -fsS --retry 3 ${{ secrets.HEALTHCHECKS_PING_URL }}

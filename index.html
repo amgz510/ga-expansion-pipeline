@@ -20,6 +20,7 @@ header p { font-size: 12px; color: #aaa; margin-top: 3px; }
 .stat.accent .num { color: #0071e3; }
 .stat.green .num { color: #28a745; }
 .stat.red .num { color: #c0392b; }
+.stat .pct { font-size: 11px; color: #0071e3; font-weight: 600; margin-top: 3px; min-height: 15px; }
 
 .controls-bar { display: flex; align-items: center; gap: 12px; padding: 12px 28px; background: #fff; border-bottom: 1px solid #e5e5e7; flex-wrap: wrap; }
 .controls-bar label { font-size: 12px; font-weight: 600; color: #6e6e73; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
@@ -62,10 +63,6 @@ header p { font-size: 12px; color: #aaa; margin-top: 3px; }
 .badge-jda { background: #fde8f4; color: #9b2561; }
 .badge-bip { background: #1d1d1f; color: #fff; }
 
-.owner-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 18px; }
-.owner-stat { background: #f5f5f7; border-radius: 8px; padding: 10px 12px; text-align: center; }
-.owner-stat .n { font-size: 22px; font-weight: 700; }
-.owner-stat .l { font-size: 11px; color: #6e6e73; margin-top: 2px; }
 
 .stage-group { margin-bottom: 22px; }
 .stage-group:last-child { margin-bottom: 0; }
@@ -169,14 +166,14 @@ tr.hidden { display: none; }
 </header>
 
 <div class="overview">
-  <div class="stat accent"><div class="num" id="stat-total">—</div><div class="label">Total Deals</div></div>
-  <div class="stat accent"><div class="num" id="stat-pipeline">—</div><div class="label">Pipeline</div></div>
-  <div class="stat"><div class="num" id="stat-ieo">—</div><div class="label">IEO</div></div>
-  <div class="stat"><div class="num" id="stat-qeo">—</div><div class="label">QEO</div></div>
-  <div class="stat"><div class="num" id="stat-jda">—</div><div class="label">JD Aligned</div></div>
-  <div class="stat green"><div class="num" id="stat-bip">—</div><div class="label">Booked &amp; In Placement</div></div>
-  <div class="stat red"><div class="num" id="stat-stale">—</div><div class="label">100d+ in stage</div></div>
-  <div class="stat red"><div class="num" id="stat-nocontact">—</div><div class="label">No contact 30d+</div></div>
+  <div class="stat accent"><div class="num" id="stat-total">—</div><div class="label">Total Deals</div><div class="pct" id="pct-total"></div></div>
+  <div class="stat accent"><div class="num" id="stat-pipeline">—</div><div class="label">Pipeline</div><div class="pct" id="pct-pipeline"></div></div>
+  <div class="stat"><div class="num" id="stat-ieo">—</div><div class="label">IEO</div><div class="pct" id="pct-ieo"></div></div>
+  <div class="stat"><div class="num" id="stat-qeo">—</div><div class="label">QEO</div><div class="pct" id="pct-qeo"></div></div>
+  <div class="stat"><div class="num" id="stat-jda">—</div><div class="label">JD Aligned</div><div class="pct" id="pct-jda"></div></div>
+  <div class="stat green"><div class="num" id="stat-bip">—</div><div class="label">Booked &amp; In Placement</div><div class="pct" id="pct-bip"></div></div>
+  <div class="stat red"><div class="num" id="stat-stale">—</div><div class="label">100d+ in stage</div><div class="pct" id="pct-stale"></div></div>
+  <div class="stat red"><div class="num" id="stat-nocontact">—</div><div class="label">No contact 30d+</div><div class="pct" id="pct-nocontact"></div></div>
 </div>
 
 <div class="controls-bar">
@@ -428,19 +425,56 @@ function sortVal(d) {
 }
 
 // ── TOP STATS ────────────────────────────────────────────────────────────
+function pct(n, total) {
+  if (!total || activeTab === 'all') return '';
+  return Math.round(n / total * 100) + '% of total';
+}
+
 function updateStats() {
+  const isAll = activeTab === 'all';
   const owners = OWNER_GROUPS[activeTab].owners;
+  const allOwners = OWNER_GROUPS['all'].owners;
+
+  // Tab-filtered deals (respecting active filter)
   const visible = DEALS.filter(d => owners.includes(d.owner) && passesFilter(d));
 
-  document.getElementById('stat-total').textContent    = visible.length;
-  const pipe = visible.reduce((s,d) => s + d.amt, 0);
-  document.getElementById('stat-pipeline').textContent = '$' + Math.round(pipe / 1000) + 'K';
-  document.getElementById('stat-ieo').textContent      = visible.filter(d => d.stage === 'ieo').length;
-  document.getElementById('stat-qeo').textContent      = visible.filter(d => d.stage === 'qeo').length;
-  document.getElementById('stat-jda').textContent      = visible.filter(d => d.stage === 'jda').length;
-  document.getElementById('stat-bip').textContent      = visible.filter(d => d.stage === 'bip').length;
-  document.getElementById('stat-stale').textContent    = visible.filter(d => d.dis != null && d.dis >= 100).length;
-  document.getElementById('stat-nocontact').textContent = visible.filter(d => d.ddc != null && d.ddc >= 30).length;
+  // Totals across ALL owners (unfiltered) for percentage denominators
+  const totAll     = DEALS.filter(d => allOwners.includes(d.owner) && passesFilter(d));
+  const totTotal   = totAll.length;
+  const totPipe    = totAll.reduce((s,d) => s + d.amt, 0);
+  const totIeo     = totAll.filter(d => d.stage === 'ieo').length;
+  const totQeo     = totAll.filter(d => d.stage === 'qeo').length;
+  const totJda     = totAll.filter(d => d.stage === 'jda').length;
+  const totBip     = totAll.filter(d => d.stage === 'bip').length;
+  const totStale   = totAll.filter(d => d.dis != null && d.dis >= 100).length;
+  const totNocon   = totAll.filter(d => d.ddc != null && d.ddc >= 30).length;
+
+  const n_total   = visible.length;
+  const pipe      = visible.reduce((s,d) => s + d.amt, 0);
+  const n_ieo     = visible.filter(d => d.stage === 'ieo').length;
+  const n_qeo     = visible.filter(d => d.stage === 'qeo').length;
+  const n_jda     = visible.filter(d => d.stage === 'jda').length;
+  const n_bip     = visible.filter(d => d.stage === 'bip').length;
+  const n_stale   = visible.filter(d => d.dis != null && d.dis >= 100).length;
+  const n_nocon   = visible.filter(d => d.ddc != null && d.ddc >= 30).length;
+
+  document.getElementById('stat-total').textContent     = n_total;
+  document.getElementById('stat-pipeline').textContent  = '$' + Math.round(pipe / 1000) + 'K';
+  document.getElementById('stat-ieo').textContent       = n_ieo;
+  document.getElementById('stat-qeo').textContent       = n_qeo;
+  document.getElementById('stat-jda').textContent       = n_jda;
+  document.getElementById('stat-bip').textContent       = n_bip;
+  document.getElementById('stat-stale').textContent     = n_stale;
+  document.getElementById('stat-nocontact').textContent = n_nocon;
+
+  document.getElementById('pct-total').textContent     = pct(n_total, totTotal);
+  document.getElementById('pct-pipeline').textContent  = pct(pipe, totPipe);
+  document.getElementById('pct-ieo').textContent       = pct(n_ieo, totIeo);
+  document.getElementById('pct-qeo').textContent       = pct(n_qeo, totQeo);
+  document.getElementById('pct-jda').textContent       = pct(n_jda, totJda);
+  document.getElementById('pct-bip').textContent       = pct(n_bip, totBip);
+  document.getElementById('pct-stale').textContent     = pct(n_stale, totStale);
+  document.getElementById('pct-nocontact').textContent = pct(n_nocon, totNocon);
 }
 
 // ── RENDER ───────────────────────────────────────────────────────────────
@@ -510,22 +544,6 @@ function buildOwnerSection(tabKey) {
 
   const owners = group.owners;
   const allDeals = DEALS.filter(d => owners.includes(d.owner));
-
-  // Stats strip (for named owner tabs — not "all" or "others")
-  if (tabKey !== 'others' && tabKey !== 'all') {
-    const statsDiv = document.createElement('div');
-    statsDiv.className = 'owner-stats';
-    const items = [
-      {n: allDeals.length, l: 'Deals'},
-      {n: '$' + Math.round(allDeals.reduce((s,d)=>s+d.amt,0)/1000) + 'K', l: 'Pipeline'},
-      {n: allDeals.filter(d=>d.stage==='ieo').length, l: 'IEO'},
-      {n: allDeals.filter(d=>d.stage==='qeo').length, l: 'QEO'},
-      {n: allDeals.filter(d=>d.stage==='jda').length, l: 'JD Aligned'},
-      {n: allDeals.filter(d=>d.stage==='bip').length, l: 'BIP'},
-    ];
-    statsDiv.innerHTML = items.map(i=>`<div class="owner-stat"><div class="n">${i.n}</div><div class="l">${i.l}</div></div>`).join('');
-    sec.appendChild(statsDiv);
-  }
 
   const legend = document.createElement('div');
   legend.className = 'legend';
